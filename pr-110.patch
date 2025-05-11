@@ -1,0 +1,171 @@
+From 0d716db0a884e0a614c57003b3249a3295c97784 Mon Sep 17 00:00:00 2001
+From: Aaron Parecki <aaron@parecki.com>
+Date: Tue, 6 Feb 2024 14:17:56 -0800
+Subject: [PATCH 1/4] add PKCE support
+
+enable with `pkce: true` when creating the strategy
+---
+ lib/state/session.js |  1 +
+ lib/strategy.js      | 30 +++++++++++++++++++++++++++++-
+ package.json         |  3 ++-
+ 3 files changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/lib/state/session.js b/lib/state/session.js
+index 0ac3d22..4d0e801 100644
+--- a/lib/state/session.js
++++ b/lib/state/session.js
+@@ -45,6 +45,7 @@ SessionStore.prototype.store = function(req, ctx, appState, meta, cb) {
+   if (ctx.maxAge) { state.maxAge = ctx.maxAge; }
+   if (ctx.nonce) { state.nonce = ctx.nonce; }
+   if (ctx.issued) { state.issued = ctx.issued; }
++  if (ctx.pkceCodeVerifier) { state.pkceCodeVerifier = ctx.pkceCodeVerifier; }
+   if (appState) { state.state = appState; }
+ 
+   if (!req.session[key]) { req.session[key] = {}; }
+diff --git a/lib/strategy.js b/lib/strategy.js
+index ad8bf99..54934db 100644
+--- a/lib/strategy.js
++++ b/lib/strategy.js
+@@ -5,6 +5,8 @@ var passport = require('passport-strategy')
+   , url = require('url')
+   , util = require('util')
+   , utils = require('./utils')
++  , base64url = require('base64url')
++  , crypto = require('crypto')
+   , OAuth2 = require('oauth').OAuth2
+   , Profile = require('./profile')
+   , Context = require('./context')
+@@ -62,6 +64,8 @@ function Strategy(options, verify) {
+   this._idTokenHint = options.idTokenHint;
+   this._nonce = options.nonce;
+   this._claims = options.claims;
++  this._pkce = options.pkce;
++  this._pkceMethod = (options.pkce === true) ? 'S256' : options.pkce;
+   
+   var key = options.sessionKey || (this.name + ':' + url.parse(options.authorizationURL).hostname);
+   this._stateStore = options.store || new SessionStateStore({ key: key });
+@@ -129,6 +133,9 @@ Strategy.prototype.authenticate = function(req, options) {
+       
+       var params = { grant_type: 'authorization_code' };
+       if (callbackURL) { params.redirect_uri = callbackURL; }
++      if (ctx.pkceCodeVerifier) {
++        params.code_verifier = ctx.pkceCodeVerifier;
++      }
+ 
+       self._oauth2.getOAuthAccessToken(code, params, function(err, accessToken, refreshToken, params) {
+         if (err) {
+@@ -333,8 +340,29 @@ Strategy.prototype.authenticate = function(req, options) {
+     if (claims) {
+       params.claims = JSON.stringify(claims);
+     }
+-    
++
+     var ctx = {};
++
++    var verifier, challenge;
++
++    if (this._pkceMethod) {
++      verifier = base64url(crypto.pseudoRandomBytes(32))
++      switch (this._pkceMethod) {
++      case 'plain':
++        challenge = verifier;
++        break;
++      case 'S256':
++        challenge = base64url(crypto.createHash('sha256').update(verifier).digest());
++        break;
++      default:
++        return this.error(new Error('Unsupported code verifier transformation method: ' + this._pkceMethod));
++      }
++
++      params.code_challenge = challenge;
++      params.code_challenge_method = this._pkceMethod;
++      ctx.pkceCodeVerifier = verifier;
++    }
++    
+     if (params.max_age) {
+       ctx.maxAge = params.max_age;
+       ctx.issued = new Date();
+diff --git a/package.json b/package.json
+index a3cf841..394b8c1 100644
+--- a/package.json
++++ b/package.json
+@@ -37,7 +37,8 @@
+   "main": "./lib",
+   "dependencies": {
+     "oauth": "0.10.x",
+-    "passport-strategy": "1.x.x"
++    "passport-strategy": "1.x.x",
++    "base64url": "3.x.x"
+   },
+   "devDependencies": {
+     "chai": "2.x.x",
+
+From 0c20b070878a27cf2f719a9c5572947dbdd2ae3a Mon Sep 17 00:00:00 2001
+From: Aaron Parecki <aaron@parecki.com>
+Date: Thu, 8 Feb 2024 12:23:35 -0800
+Subject: [PATCH 2/4] add missing codeVerifier extract
+
+---
+ lib/state/session.js | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lib/state/session.js b/lib/state/session.js
+index 4d0e801..7756939 100644
+--- a/lib/state/session.js
++++ b/lib/state/session.js
+@@ -90,7 +90,8 @@ SessionStore.prototype.verify = function(req, handle, cb) {
+   var ctx = {
+     maxAge: state.maxAge,
+     nonce: state.nonce,
+-    issued: state.issued
++    issued: state.issued,
++    codeVerifier: state.codeVerifier
+   };
+   if (typeof ctx.issued === 'string') {
+     // convert issued to a Date object
+
+From 9461ce0cef7f47cc13121c067c4cd886ce38808a Mon Sep 17 00:00:00 2001
+From: Aaron Parecki <aaron@parecki.com>
+Date: Thu, 8 Feb 2024 12:28:06 -0800
+Subject: [PATCH 3/4] fix variable name
+
+---
+ lib/state/session.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/state/session.js b/lib/state/session.js
+index 7756939..42c8fe2 100644
+--- a/lib/state/session.js
++++ b/lib/state/session.js
+@@ -91,7 +91,7 @@ SessionStore.prototype.verify = function(req, handle, cb) {
+     maxAge: state.maxAge,
+     nonce: state.nonce,
+     issued: state.issued,
+-    codeVerifier: state.codeVerifier
++    pkceCodeVerifier: state.codeVerifier
+   };
+   if (typeof ctx.issued === 'string') {
+     // convert issued to a Date object
+
+From 8f9420d59c8d02214cb77e9ec91b081d90c4e1d8 Mon Sep 17 00:00:00 2001
+From: Aaron Parecki <aaron@parecki.com>
+Date: Thu, 8 Feb 2024 12:29:22 -0800
+Subject: [PATCH 4/4] really fix it
+
+---
+ lib/state/session.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/state/session.js b/lib/state/session.js
+index 42c8fe2..35b80e5 100644
+--- a/lib/state/session.js
++++ b/lib/state/session.js
+@@ -91,7 +91,7 @@ SessionStore.prototype.verify = function(req, handle, cb) {
+     maxAge: state.maxAge,
+     nonce: state.nonce,
+     issued: state.issued,
+-    pkceCodeVerifier: state.codeVerifier
++    pkceCodeVerifier: state.pkceCodeVerifier
+   };
+   if (typeof ctx.issued === 'string') {
+     // convert issued to a Date object

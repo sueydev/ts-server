@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+	  "target": "es2020", // or higher, e.g., "esnext" for latest features
+	  "module": "commonjs", // or "esnext" for modern modules (requires Node.js 14+)
+	  "outDir": "./dist",
+	  "rootDir": "./src",
+	  "strict": true,
+	  "esModuleInterop": true,
+	  "skipLibCheck": true,
+	  "forceConsistentCasingInFileNames": true,
+	  "resolveJsonModule": true, // Allow importing JSON files
+	  "moduleResolution": "node",
+	  "sourceMap": true, // Generate source maps for debugging
+	  "lib": ["es2020", "dom"], // Include ES2020 and DOM type definitions (if needed)
+	  "experimentalDecorators": true, // Enable decorators (if you plan to use them)
+	  "emitDecoratorMetadata": true, // Emit metadata for decorators (if you plan to use them)
+	  "allowJs": false, // Disallow JavaScript files (enforce TypeScript)
+	  "noImplicitAny": true, // Raise error on expressions and declarations with an implied 'any' type.
+	  "noUnusedLocals": true, // Report errors on unused locals.
+	  "noUnusedParameters": true, // Report errors on unused parameters.
+	  "noImplicitReturns": true, // Report error when not all code paths in function return a value.
+	  "noFallthroughCasesInSwitch": true, // Report errors for fallthrough cases in switch statements.
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules"]
+  }
+  
