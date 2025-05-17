@@ -1,6 +1,7 @@
 ## OIDC Sign-in
 
 git clone git@github-sueydev:sueydev/ts-server.git
+git clone git@github-sueydev:sueydev/auth-server.git
 
 https://9f97ee7488a0.ngrok.app/api/v1/auth/login
 
