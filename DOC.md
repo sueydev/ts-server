@@ -2,6 +2,9 @@
 
 git clone git@github-sueydev:sueydev/ts-server.git
 git clone git@github-sueydev:sueydev/auth-server.git
+git clone git@github-sueydev:sueydev/face-login.git
+
+git@github.com:sueydev/face-login.git
 
 https://9f97ee7488a0.ngrok.app/api/v1/auth/login
 
